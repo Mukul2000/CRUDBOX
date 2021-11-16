@@ -71,3 +71,27 @@ class BoxView(APIView):
         box.save()
 
         return Response(BoxSerializer(box).data, status = status.HTTP_200_OK)
+
+    def delete(self, request, *args, **kwargs):
+
+        user = request.user
+
+        box_id = self.kwargs.get('id', None)
+
+        if box_id is None:
+            return Response({'id': ['This field is required']},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            box = Box.objects.get(id=box_id)
+        except Box.DoesNotExist:
+            return Response({'error': ['No box with this id']},
+                        status = status.HTTP_404_NOT_FOUND)
+
+        if user != box.created_by:
+            return Response({'error': ['You are not the creator of this box']},
+                            status = status.HTTP_403_FORBIDDEN)
+
+        box.delete()
+
+        return Response({'message': ['Box successfully deleted']}, status=status.HTTP_200_OK)
