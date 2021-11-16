@@ -11,7 +11,29 @@ class BoxView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        pass
+
+        user = request.user
+        if user.is_staff == False:
+            return Response({"error": ["You don't have sufficient permissions"]},
+                        status=status.HTTP_403_FORBIDDEN)
+
+        box_id = self.kwargs.get('id',None)
+
+        if box_id is None:
+            # fetch all of this user's boxes
+            boxes = Box.objects.filter(created_by = user)
+
+            return Response(BoxSerializer(boxes, many = True).data, status = status.HTTP_200_OK) 
+        else:
+          # fetch a particular box
+            try:
+                box = Box.objects.get(id=box_id)
+            except Box.DoesNotExist:
+                return Response({'error': ['No box with this id']},
+                        status = status.HTTP_404_NOT_FOUND)         
+            
+            return Response(BoxSerializer(box).data, status=status.HTTP_200_OK)
+
 
     def post(self, request, *args, **kwargs):
 
