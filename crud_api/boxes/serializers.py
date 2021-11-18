@@ -6,3 +6,8 @@ class BoxSerializer(serializers.ModelSerializer):
     class Meta:
         fields = '__all__' 
         model = Box
+
+class StoreBoxSerializer(serializers.ModelSerializer):
+    class Meta:
+        fields = ['length', 'breadth', 'height']
+        model = Box

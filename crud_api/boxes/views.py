@@ -2,26 +2,21 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
-from .models import Box
-from .serializers import BoxSerializer
+from .models import Box, BoxLimits
+from .serializers import BoxSerializer, StoreBoxSerializer
 
 # Create your views here.
 class BoxView(APIView):
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     def get(self, request, *args, **kwargs):
-
         user = request.user
-        if user.is_staff == False:
-            return Response({"error": ["You don't have sufficient permissions"]},
-                        status=status.HTTP_403_FORBIDDEN)
-
         box_id = self.kwargs.get('id',None)
 
         if box_id is None:
             # fetch all of this user's boxes
-            boxes = Box.objects.filter(created_by = user)
+            boxes = BoxUtils.filter_boxes(user, request.query_params)
 
             return Response(BoxSerializer(boxes, many = True).data, status = status.HTTP_200_OK) 
         else:
@@ -38,10 +33,6 @@ class BoxView(APIView):
     def post(self, request, *args, **kwargs):
 
         user = request.user
-
-        if user.is_staff == False:
-            return Response({"error": ["You don't have sufficient permissions"]},
-                        status=status.HTTP_403_FORBIDDEN)
 
         l = request.data.get('length', None)
         b = request.data.get('breadth', None)
@@ -62,10 +53,6 @@ class BoxView(APIView):
     def put(self, request, *args, **kwargs):
 
         user = request.user
-
-        if user.is_staff == False:
-            return Response({"error": ["You don't have sufficient permissions"]},
-                        status=status.HTTP_403_FORBIDDEN)
 
         box_id = self.kwargs.get('id', None)
 
@@ -117,3 +104,66 @@ class BoxView(APIView):
         box.delete()
 
         return Response({'message': ['Box successfully deleted']}, status=status.HTTP_200_OK)
+
+
+class BoxStoreView(APIView):
+    permissions=[permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        
+        user = request.user
+        boxes = BoxUtils.filter_boxes(user, request.query_params)
+
+        return Response(StoreBoxSerializer(boxes, many = True).data, status=status.HTTP_200_OK)
+
+class BoxUtils:
+
+
+    def filter_boxes(user, filters):
+        query_filters = ['l_lte', 'l_gte', 'b_lte', 'b_gte', 'h_lte', 'h_gte', 'a_lte', 'a_gte', 'v_lte', 'v_gte', 'created_by']
+
+        boxes = Box.objects.all()
+        for f in query_filters:
+            if f in filters:
+                value = float(filters[f])
+                if f[0] == 'l':
+                   if f == 'l_lte': 
+                       boxes = boxes.filter(length__lte = value)
+                   if f == 'l_gte':
+                       boxes = boxes.filter(length__gte = value)
+
+                elif f[0] == 'b':
+                    if f == 'b_lte': 
+                       boxes = boxes.filter(breadth__lte = value)
+                    if f == 'b_gte':
+                       boxes = boxes.filter(breadth__gte = value)
+
+                elif f[0] == 'h':
+                    if f == 'h_lte': 
+                        boxes = boxes.filter(height__lte = value)
+                    if f == 'h_gte':
+                        boxes = boxes.filter(height__gte = value)
+
+                elif f[0] == 'a':
+                    if f == 'a_lte': 
+                        boxes = [BoxUtils.get_area(box) <= value for box in boxes]
+                    if f == 'a_gte':
+                        boxes = [BoxUtils.get_area(box) >= value for box in boxes]
+
+                elif f[0] == 'v':
+                    if f == 'v_lte':
+                        boxes = [BoxUtils.get_volume(box) <= value for box in boxes]
+                    if f == 'v_gte':
+                        boxes = [BoxUtils.get_volume(box) >= box.length * box.breadth * box.height >= value for box in boxes]
+
+                elif f == 'created_by':
+                    boxes = boxes.filter(created_by__id=int(value))
+        return boxes
+
+    @staticmethod
+    def get_volume(box):
+        return box.length*box.breadth*box.height
+
+    @staticmethod
+    def get_area(box):
+        return 2*(box.length * box.breadth + box.length*box.height + box.breadth*box.height)
